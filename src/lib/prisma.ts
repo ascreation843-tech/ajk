@@ -11,9 +11,17 @@ let prismaInstance: PrismaClient | null = null;
 function createPrismaClient(): PrismaClient {
   console.log('--- Creating fresh Prisma Client (Lazy) ---');
   
+  if (!process.env.DATABASE_URL) {
+    console.error('CRITICAL: DATABASE_URL is missing in environment variables!');
+    throw new Error('DATABASE_URL is not set in environment variables');
+  }
+
   const pool = new pg.Pool({ 
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 5000,
+    idleTimeoutMillis: 10000,
+    max: 5,
   });
 
   const adapter = new PrismaPg(pool);
