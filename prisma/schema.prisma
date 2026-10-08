@@ -1,0 +1,316 @@
+generator client {
+  provider      = "prisma-client-js"
+  engineType    = "library"
+  binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                      String                   @id @default(uuid())
+  email                   String                   @unique
+  emailVerified           Boolean                  @default(false)
+  password                String
+  name                    String?
+  role                    Role                     @default(USER)
+  shopName                String?
+  phone                   String?
+  region                  String?
+  avatar                  String?
+  avatarPublicId          String?
+  points                  Int                      @default(0)
+  totalMargin             Decimal                  @default(0)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  isActive                Boolean                  @default(true)
+  cart                    CartItem[]
+  freelancerProfile       Freelancer?
+  notificationPreferences NotificationPreferences?
+  orders                  Order[]
+  pushTokens              PushToken[]
+  notifications           Notification[]
+  passwordResetOtps       PasswordResetOtp[]
+  emailVerificationOtps   EmailVerificationOtp[]
+  refreshTokens           RefreshToken[]
+  reviews                 Review[]
+  wishlist                WishlistItem[]
+
+  @@map("users")
+}
+
+model EmailVerificationOtp {
+  id         String   @id @default(uuid())
+  userId     String
+  otpHash    String
+  attempts   Int      @default(0)
+  resendCount Int     @default(0)
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verification_otps")
+}
+
+model PasswordResetOtp {
+  id                  String    @id @default(uuid())
+  userId              String
+  otpHash             String
+  attempts            Int       @default(0)
+  resendCount         Int       @default(0)
+  expiresAt           DateTime
+  verifiedAt          DateTime?
+  resetToken          String?
+  resetTokenExpiresAt DateTime?
+  usedAt              DateTime?
+  createdAt           DateTime  @default(now())
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_otps")
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@map("cart_items")
+}
+
+model WishlistItem {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@map("wishlist_items")
+}
+
+model Freelancer {
+  id                   String    @id @default(uuid())
+  userId               String    @unique
+  shopName             String?
+  phone                String?
+  region               String?
+  isActive             Boolean   @default(true)
+  isSubscriptionActive Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  accountNumber        String?
+  accountTitle         String?
+  bankName             String?
+  user                 User      @relation(fields: [userId], references: [id])
+  products             Product[]
+
+  @@map("freelancers")
+}
+
+model Product {
+  id              String         @id @default(uuid())
+  name            String
+  category        String?
+  description     String?
+  originalPrice   Decimal
+  discountPrice   Decimal?
+  stock           Int            @default(0)
+  images          String[]
+  imagePublicIds  String[]
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  isBanner        Boolean        @default(false)
+  isNew           Boolean        @default(false)
+  condition       String         @default("NEW")
+  freelancerId    String?
+  isApproved      Boolean        @default(false)
+  rejectionReason String?
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+  freelancer      Freelancer?    @relation(fields: [freelancerId], references: [id])
+  reviews         Review[]
+  wishlistItems   WishlistItem[]
+
+  @@index([freelancerId])
+  @@index([isApproved])
+  @@index([isActive])
+  @@index([name])
+  @@index([category])
+  @@map("products")
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  rating    Int      @default(5)
+  comment   String?
+  userId    String
+  productId String
+  orderId   String?
+  images    String[]
+  imagePublicIds String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(true)
+  product   Product  @relation(fields: [productId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([productId])
+  @@index([userId])
+  @@map("reviews")
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  userId          String
+  total           Decimal
+  status          String      @default("PENDING")
+  margin          Decimal?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  carrier         String?
+  trackingNumber  String?
+  paymentMethod   String?
+  shippingAddress Json?
+  pointsAwarded   Boolean     @default(false)
+  items           OrderItem[]
+  user            User        @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String   @id @default(uuid())
+  orderId             String
+  productId           String
+  quantity            Int
+  price               Decimal
+  margin              Decimal?
+  adminEarning        Decimal?
+  commissionPercent   Decimal?
+  freelancerEarning   Decimal?
+  freelancerId        String?
+  paymentInstructions String?
+  paymentStatus       String?  @default("PENDING")
+  paymentProofUrl     String?
+  paymentProofPublicId String?
+  paymentProofNote    String?
+  paymentProofAt      DateTime?
+  order               Order    @relation(fields: [orderId], references: [id])
+  product             Product  @relation(fields: [productId], references: [id])
+
+  @@index([freelancerId])
+  @@map("order_items")
+}
+
+model NotificationPreferences {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  orderUpdates   Boolean  @default(true)
+  orderDelivered Boolean  @default(true)
+  orderCancelled Boolean  @default(true)
+  promotions     Boolean  @default(true)
+  newProducts    Boolean  @default(true)
+  priceDrops     Boolean  @default(true)
+  wholesaleDeals Boolean  @default(true)
+  marginAlerts   Boolean  @default(true)
+  lowStockAlerts Boolean  @default(true)
+  systemUpdates  Boolean  @default(true)
+  securityAlerts Boolean  @default(true)
+  pushEnabled    Boolean  @default(true)
+  emailEnabled   Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  platform  String
+  deviceId  String?
+  isActive  Boolean  @default(true)
+  lastUsed  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_tokens")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String   // ORDER_CREATED, PAYMENT_VERIFIED, etc.
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model Settings {
+  id                   String   @id @default("global")
+  shopTitle            String   @default("AJK Collective")
+  registryEmail        String   @default("admin@ajk.shop")
+  globalMarginPercent  Decimal  @default(55)
+  minOrderValue        Decimal  @default(1500)
+  loyaltyMultiplier    Decimal  @default(1.5)
+  shippingPolicy       String?
+  returnPolicy         String?
+  warrantyPolicy       String?
+  authenticityInfo     String?
+  isBankTransferActive Boolean  @default(true)
+  isEasypaisaActive    Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("settings")
+}
+
+enum Role {
+  USER
+  BUSINESS_PARTNER
+  BUYER
+  SELLER
+  ADMIN
+  FREELANCER
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}

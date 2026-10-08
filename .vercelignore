@@ -1,0 +1,7 @@
+node_modules
+dist
+.vercel
+.git
+logs.txt
+uploads
+*.log

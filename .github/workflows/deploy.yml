@@ -1,0 +1,62 @@
+name: Deploy to Hostinger (Simple)
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Build project
+        run: npm run build
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p ${{ secrets.DEPLOY_PORT || 22 }} ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync files to public_html
+        run: |
+          # Sync dist, package.json, prisma schema, and .env.example
+          # We don't sync node_modules to avoid architecture issues; we'll install on server
+          rsync -avz --delete -e "ssh -p ${{ secrets.DEPLOY_PORT || 22 }}" \
+            ./dist \
+            ./package.json \
+            ./package-lock.json \
+            ./prisma \
+            ./.env.example \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:public_html/
+
+      - name: Finalize Deployment on Server
+        run: |
+          ssh -p ${{ secrets.DEPLOY_PORT || 22 }} ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "
+            cd public_html
+            
+            # Install production dependencies
+            npm install --production
+
+            # Run Prisma migrations
+            npx prisma migrate deploy
+
+            # Note: On Hostinger Shared Hosting, updating package.json 
+            # or index.js usually triggers an automatic restart.
+            # If not, you may need to click 'Restart' in the Node.js Dashboard.
+            touch package.json
+          "
