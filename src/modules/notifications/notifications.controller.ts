@@ -71,7 +71,28 @@ export const getPreferences = async (c: Context) => {
       where: { id: user.id },
       select: { notificationPreferences: true }
     })
-    return c.json({ success: true, data: profile?.notificationPreferences || {} })
+
+    const defaultPreferences = {
+      orderUpdates: true,
+      orderDelivered: true,
+      orderCancelled: true,
+      promotions: true,
+      newProducts: true,
+      priceDrops: true,
+      wholesaleDeals: true,
+      marginAlerts: true,
+      lowStockAlerts: true,
+      systemUpdates: true,
+      securityAlerts: true,
+      pushEnabled: true,
+      emailEnabled: true,
+    }
+
+    const data = profile?.notificationPreferences
+      ? { ...defaultPreferences, ...profile.notificationPreferences }
+      : defaultPreferences
+
+    return c.json({ success: true, data })
   } catch (error: any) {
     return c.json({ success: false, message: 'Failed to fetch preferences' }, 500)
   }
@@ -83,13 +104,13 @@ export const updatePreferences = async (c: Context) => {
     const body = await c.req.json()
     
     // Use upsert to handle both creation and update of the relation
-    await (prisma as any).notificationPreferences.upsert({
+    const updated = await (prisma as any).notificationPreferences.upsert({
       where: { userId: user.id },
       update: body,
       create: { ...body, userId: user.id }
     })
     
-    return c.json({ success: true, message: 'Preferences updated' })
+    return c.json({ success: true, message: 'Preferences updated', data: updated })
   } catch (error: any) {
     console.error('[NotificationController] Update preferences error:', error)
     return c.json({ success: false, message: 'Failed to update preferences' }, 500)
