@@ -46,6 +46,7 @@ export const getUserStats = async (c: Context) => {
         phone: true,
         role: true,
         isActive: true,
+        avatar: true,
         createdAt: true,
       } as any,
       orderBy: { createdAt: 'desc' },
