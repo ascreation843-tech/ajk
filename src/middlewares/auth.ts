@@ -7,18 +7,40 @@ export const authMiddleware = async (c: Context, next: Next) => {
   const authHeader = c.req.header('Authorization')
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.warn(`[AuthMiddleware] Missing or malformed Authorization header on ${c.req.method} ${c.req.path}`)
     return c.json({ success: false, message: 'Unauthorized: No token provided' }, 401)
   }
 
   const token = authHeader.split(' ')[1]
+  if (!token || token === 'null' || token === 'undefined') {
+    console.warn(`[AuthMiddleware] Empty or placeholder token on ${c.req.method} ${c.req.path}`)
+    return c.json({ success: false, message: 'Unauthorized: No token provided' }, 401)
+  }
+
+  let decoded: any
+  try {
+    decoded = jwt.verify(token, JWT_SECRET)
+  } catch (jwtError: any) {
+    const errorType = jwtError?.name || 'JsonWebTokenError'
+    console.warn(`[AuthMiddleware] JWT verification failed (${errorType}) on ${c.req.method} ${c.req.path}`)
+    return c.json({ 
+      success: false, 
+      message: 'Unauthorized: Invalid or expired token',
+      errorType 
+    }, 401)
+  }
 
   try {
-    const decoded: any = jwt.verify(token, JWT_SECRET)
-    
     const { getCache, setCache } = await import('../lib/redis.js')
     const userId = decoded.id || decoded.userId
     
-    let isActive = await getCache(`user:status:${userId}`)
+    let isActive: any = null
+    try {
+      isActive = await getCache(`user:status:${userId}`)
+    } catch (cacheErr: any) {
+      console.warn(`[AuthMiddleware] Cache lookup warning:`, cacheErr?.message || cacheErr)
+      isActive = null
+    }
     
     if (isActive === null) {
       const { default: prisma } = await import('../lib/prisma.js')
@@ -32,7 +54,11 @@ export const authMiddleware = async (c: Context, next: Next) => {
       }
       
       isActive = user.isActive
-      await setCache(`user:status:${userId}`, isActive, 3600)
+      try {
+        await setCache(`user:status:${userId}`, isActive, 3600)
+      } catch (cacheSetErr: any) {
+        console.warn(`[AuthMiddleware] Cache set warning:`, cacheSetErr?.message || cacheSetErr)
+      }
     }
 
     if (isActive === false || isActive === 'false') {
@@ -44,8 +70,12 @@ export const authMiddleware = async (c: Context, next: Next) => {
 
     c.set('user', decoded)
     await next()
-  } catch (error) {
-    return c.json({ success: false, message: 'Unauthorized: Invalid or expired token' }, 401)
+  } catch (dbError: any) {
+    console.error(`[AuthMiddleware] Infrastructure error verifying user status on ${c.req.method} ${c.req.path}:`, dbError?.message || dbError)
+    return c.json({ 
+      success: false, 
+      message: 'Internal server error: Unable to verify account status' 
+    }, 500)
   }
 }
 
