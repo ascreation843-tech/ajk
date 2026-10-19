@@ -1,27 +1,19 @@
-import { Hono } from 'hono'
-import { handle } from 'hono/vercel'
+import { handle } from '@hono/node-server/vercel';
+import app from '../dist/index.js';
 
-const app = new Hono()
+const nodeHandler = handle(app);
 
-app.get('/api/ping', (c) => c.json({ success: true, message: 'Pong! Vercel is alive.' }))
-app.get('/api/health', (c) => c.json({ status: 'ok', message: 'Lazy entry point is active' }))
-
-app.all('*', async (c) => {
-  try {
-    const { default: realApp } = await import('../dist/index.js');
-    return realApp.fetch(c.req.raw, c.env, c.executionCtx);
-  } catch (err) {
-    console.error('CRITICAL: Failed to lazy-load main app:', err);
-    return c.json({
-      success: false,
-      message: 'Failed to initialize main application',
-      error: err.message
-    }, 500);
+export default function handler(req, res) {
+  // If Vercel rewrote the request to /api/index.js, restore the original client path
+  const matchedPath = req.headers['x-matched-path'];
+  if (matchedPath && matchedPath !== '/api/index.js') {
+    const queryIndex = req.url ? req.url.indexOf('?') : -1;
+    const queryString = queryIndex !== -1 ? req.url.substring(queryIndex) : '';
+    req.url = matchedPath + queryString;
   }
-})
-
-export const config = {
-  runtime: 'nodejs'
+  return nodeHandler(req, res);
 }
 
-export default handle(app)
+export const config = {
+  maxDuration: 30,
+};

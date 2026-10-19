@@ -23,8 +23,19 @@ import { generalRateLimiter, authRateLimiter, wishlistRateLimiter } from "./midd
 
 const app = new Hono();
 
-// Health check route - Moved to top for diagnostic reliability
-app.get("/api/health", (c) => {
+// Health and diagnostic routes
+app.get("/", (c) => {
+  return c.json({
+    status: "ok",
+    message: "AJK SHOP Backend is running",
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get("/ping", (c) => c.json({ success: true, message: "Pong! Server is alive." }));
+app.get("/api/ping", (c) => c.json({ success: true, message: "Pong! Server is alive." }));
+
+app.get("/health", (c) => {
   return c.json({
     status: "ok",
     uptime: process.uptime(),
@@ -32,6 +43,7 @@ app.get("/api/health", (c) => {
     message: "AJK SHOP Backend is running smoothly"
   });
 });
+
 
 app.use("*", secureHeaders());
 app.use("*", logger());
@@ -70,26 +82,52 @@ app.onError((err, c) => {
 app.get("/api/reviews/test", (c) => c.json({ success: true, message: "Review system is reachable" }));
 
 
-// API Routes - Rate limiters disabled for testing
+// API Routes
 app.use("/auth/*", authRateLimiter);
+app.use("/api/auth/*", authRateLimiter);
 app.use("/wishlist/*", wishlistRateLimiter);
+app.use("/api/wishlist/*", wishlistRateLimiter);
 
-
+// Mount standard routes and /api prefixed routes (for Vercel serverless / proxy flexibility)
 app.route("/auth", authRoutes);
+app.route("/api/auth", authRoutes);
+
 app.route("/products", productRoutes);
+app.route("/api/products", productRoutes);
+
 app.route("/orders", orderRoutes);
+app.route("/api/orders", orderRoutes);
+
 app.route("/notifications", notificationRoutes);
+app.route("/api/notifications", notificationRoutes);
+
 app.route("/user", userRoutes);
+app.route("/api/user", userRoutes);
+
 app.route("/admin", adminRoutes);
+app.route("/api/admin", adminRoutes);
+
 app.route("/freelancer", freelancerRoutes);
+app.route("/api/freelancer", freelancerRoutes);
+
 app.route("/cart", cartRoutes);
+app.route("/api/cart", cartRoutes);
+
 app.route("/wishlist", wishlistRoutes);
+app.route("/api/wishlist", wishlistRoutes);
+
 app.route("/reviews", reviewsRoutes);
+app.route("/api/reviews", reviewsRoutes);
+
 app.route("/settings", settingsRoutes);
+app.route("/api/settings", settingsRoutes);
+
 app.route("/upload", uploadRoutes);
+app.route("/api/upload", uploadRoutes);
 
 // Direct mounting for reliability
 app.get("/freelancer/reviews", authMiddleware, roleMiddleware(['FREELANCER', 'BUSINESS_PARTNER']), getFreelancerReviews);
+app.get("/api/freelancer/reviews", authMiddleware, roleMiddleware(['FREELANCER', 'BUSINESS_PARTNER']), getFreelancerReviews);
 
 // 404 Handler (MUST be after all routes)
 app.notFound((c) => {

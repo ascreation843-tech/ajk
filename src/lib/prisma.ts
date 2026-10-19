@@ -10,13 +10,13 @@ let prismaInstance: PrismaClient | null = null;
 
 function createPrismaClient(): PrismaClient {
   console.log('--- Creating fresh Prisma Client (Lazy) ---');
-  
+
   if (!process.env.DATABASE_URL) {
     console.error('CRITICAL: DATABASE_URL is missing in environment variables!');
     throw new Error('DATABASE_URL is not set in environment variables');
   }
 
-  const pool = new pg.Pool({ 
+  const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
     connectionTimeoutMillis: 5000,
@@ -25,10 +25,23 @@ function createPrismaClient(): PrismaClient {
   });
 
   const adapter = new PrismaPg(pool);
-  return new PrismaClient({ 
+  return new PrismaClient({
     adapter,
     log: ['warn', 'error']
   }) as unknown as PrismaClient;
+}
+
+function getPrismaClient(): PrismaClient {
+  if (globalThis.prisma) {
+    return globalThis.prisma;
+  }
+  if (!prismaInstance) {
+    prismaInstance = createPrismaClient();
+    if (process.env.NODE_ENV !== 'production' || process.env.VERCEL) {
+      globalThis.prisma = prismaInstance;
+    }
+  }
+  return prismaInstance;
 }
 
 /**
@@ -38,13 +51,11 @@ function createPrismaClient(): PrismaClient {
  */
 const prismaProxy = new Proxy({} as PrismaClient, {
   get: (target, prop) => {
-    if (!prismaInstance) {
-      prismaInstance = createPrismaClient();
-    }
-    
-    const value = (prismaInstance as any)[prop];
+    const instance = getPrismaClient();
+
+    const value = (instance as any)[prop];
     if (typeof value === 'function') {
-      return value.bind(prismaInstance);
+      return value.bind(instance);
     }
     return value;
   }
